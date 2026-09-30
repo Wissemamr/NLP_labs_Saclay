@@ -162,6 +162,7 @@ models/
 *.vec
 *.model
 *.npy
+Lab3_Embedding/models/*
 
 # Spyder project settings
 .spyderproject
