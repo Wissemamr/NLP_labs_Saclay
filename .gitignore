@@ -157,6 +157,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Data files
+data/*
+data/
+
 # Models
 models/
 *.vec
