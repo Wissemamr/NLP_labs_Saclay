@@ -159,6 +159,9 @@ venv.bak/
 
 # Models
 models/
+*.vec
+*.model
+*.npy
 
 # Spyder project settings
 .spyderproject
