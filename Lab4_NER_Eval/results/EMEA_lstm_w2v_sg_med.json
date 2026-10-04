@@ -1,0 +1,19 @@
+{
+  "dataset": "EMEA",
+  "model": "lstm",
+  "embedding": "w2v_sg_med",
+  "epochs": 30,
+  "best_epoch": 24,
+  "seed": 42,
+  "embedding_coverage": 1.0,
+  "dev": {
+    "precision": 0.41487068965517243,
+    "recall": 0.4041994750656168,
+    "f1": 0.40946556766817344
+  },
+  "test": {
+    "precision": 0.3624277456647399,
+    "recall": 0.3441273326015368,
+    "f1": 0.35304054054054057
+  }
+}

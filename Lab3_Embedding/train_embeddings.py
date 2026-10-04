@@ -57,7 +57,7 @@ def train_model(
     dim=100,
     min_count=1,
     window=5,
-    epochs=5,
+    epochs=30,
     workers=4,
 ):
     """
@@ -174,7 +174,7 @@ def main():
         "--window", type=int, default=5, help="Context window size (default: 5)"
     )
     parser.add_argument(
-        "--epochs", type=int, default=5, help="Number of training epochs (default: 5)"
+        "--epochs", type=int, default=30, help="Number of training epochs (default: 30)"
     )
     parser.add_argument(
         "--output_dir",

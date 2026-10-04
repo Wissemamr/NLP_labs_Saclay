@@ -19,7 +19,7 @@ We build **6 embedding models** in total across 3 approaches:
 - Dimension: `dim = 100`
 - Minimum word count: `min_count = 1`
 - Context window: `window = 5`
-- Epochs: `epochs = 5`
+- Epochs: `epochs = 30`
 
 ---
 

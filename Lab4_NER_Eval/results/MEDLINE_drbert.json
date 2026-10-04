@@ -1,0 +1,19 @@
+{
+  "dataset": "MEDLINE",
+  "model": "drbert",
+  "embedding": "contextual",
+  "checkpoint": "Dr-BERT/DrBERT-7GB",
+  "epochs": 5,
+  "best_epoch": 3,
+  "seed": 42,
+  "dev": {
+    "precision": 0.5396618985695709,
+    "recall": 0.5575459023734886,
+    "f1": 0.5484581497797357
+  },
+  "test": {
+    "precision": 0.5382045929018789,
+    "recall": 0.560922541340296,
+    "f1": 0.5493287875559344
+  }
+}

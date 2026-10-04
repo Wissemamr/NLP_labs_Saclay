@@ -1,0 +1,19 @@
+{
+  "dataset": "MEDLINE",
+  "model": "camembert",
+  "embedding": "contextual",
+  "checkpoint": "camembert-base",
+  "epochs": 5,
+  "best_epoch": 5,
+  "seed": 42,
+  "dev": {
+    "precision": 0.4163295329165134,
+    "recall": 0.5069413345275414,
+    "f1": 0.45718901453957994
+  },
+  "test": {
+    "precision": 0.42384341637010675,
+    "recall": 0.5182767624020888,
+    "f1": 0.466327329678935
+  }
+}

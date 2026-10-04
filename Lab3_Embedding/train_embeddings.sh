@@ -48,7 +48,7 @@ $PYTHON_CMD train_embeddings.py \
     --dim 100 \
     --min_count 1 \
     --window 5 \
-    --epochs 5 \
+    --epochs 30 \
     --output_dir "$MODELS_DIR"
 
 echo ""

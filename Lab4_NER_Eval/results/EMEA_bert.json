@@ -1,0 +1,19 @@
+{
+  "dataset": "EMEA",
+  "model": "bert",
+  "embedding": "contextual",
+  "checkpoint": "bert-base-multilingual-cased",
+  "epochs": 5,
+  "best_epoch": 5,
+  "seed": 42,
+  "dev": {
+    "precision": 0.7059442398737507,
+    "recall": 0.7044619422572178,
+    "f1": 0.7052023121387282
+  },
+  "test": {
+    "precision": 0.6242969628796401,
+    "recall": 0.6092206366630076,
+    "f1": 0.6166666666666667
+  }
+}

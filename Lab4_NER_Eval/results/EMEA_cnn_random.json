@@ -1,0 +1,19 @@
+{
+  "dataset": "EMEA",
+  "model": "cnn",
+  "embedding": "random",
+  "epochs": 30,
+  "best_epoch": 28,
+  "seed": 42,
+  "embedding_coverage": 0.0,
+  "dev": {
+    "precision": 0.4010152284263959,
+    "recall": 0.4146981627296588,
+    "f1": 0.40774193548387094
+  },
+  "test": {
+    "precision": 0.3253880266075388,
+    "recall": 0.3221734357848518,
+    "f1": 0.3237727523441809
+  }
+}

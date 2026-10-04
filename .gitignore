@@ -167,6 +167,7 @@ models/
 *.model
 *.npy
 Lab3_Embedding/models/*
+Lab4_NER_Eval/results/*.pt
 
 # Spyder project settings
 .spyderproject

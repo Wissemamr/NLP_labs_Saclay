@@ -1,0 +1,19 @@
+{
+  "dataset": "MEDLINE",
+  "model": "cnn",
+  "embedding": "w2v_cbow_press",
+  "epochs": 30,
+  "best_epoch": 28,
+  "seed": 42,
+  "embedding_coverage": 0.40652511651993783,
+  "dev": {
+    "precision": 0.2987234042553191,
+    "recall": 0.3143752798925213,
+    "f1": 0.30634955269474146
+  },
+  "test": {
+    "precision": 0.30605285592497866,
+    "recall": 0.3124456048738033,
+    "f1": 0.3092161929371231
+  }
+}
