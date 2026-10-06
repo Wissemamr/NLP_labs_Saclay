@@ -1,45 +1,139 @@
-"""Run the full, resumable NER experiment grid."""
+"""
+run_all.py
+----------
+Orchestrates all NER experiments for Lab4_NER_Eval_2.
 
-import argparse
+Runs the following grid:
+  Models      : lstm, cnn
+  Corpora     : EMEA, MEDLINE
+  Embeddings  : random (baseline) + 6 pre-trained from Lab3
+
+  Transformers: bert-base-multilingual-uncased, camembert-base
+  Corpora     : EMEA, MEDLINE
+
+Results are saved as JSON files in the results/ directory.
+
+Usage:
+  python run_all.py                      # run everything
+  python run_all.py --skip_transformer   # only classical models
+  python run_all.py --skip_classical     # only transformers
+  python run_all.py --corpus EMEA        # only EMEA corpus
+"""
+
+import os
+import sys
 import json
+import subprocess
+import argparse
 from pathlib import Path
 
-from cnn_classification import EMBEDDING_NAMES, run as run_classical
-from transformers_classification import run as run_bert
+BASE_DIR    = Path(__file__).parent
+PYTHON      = sys.executable
+RESULTS_DIR = BASE_DIR / "results"
+RESULTS_DIR.mkdir(exist_ok=True)
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--skip_classical",     action="store_true")
+parser.add_argument("--skip_transformer",   action="store_true")
+parser.add_argument("--corpus",             default="all", choices=["all", "EMEA", "MEDLINE"])
+parser.add_argument("--classical_epochs",   default=30, type=int)
+parser.add_argument("--transformer_epochs", default=5,  type=int)
+args = parser.parse_args()
+
+corpora = ["EMEA", "MEDLINE"] if args.corpus == "all" else [args.corpus]
+
+EMBEDDINGS = [
+    "random",
+    "w2v_cbow_med",
+    "w2v_cbow_press",
+    "w2v_sg_med",
+    "w2v_sg_press",
+    "fasttext_cbow_med",
+    "fasttext_cbow_press",
+]
+
+TRANSFORMER_MODELS = [
+    "bert-base-multilingual-uncased",
+    "camembert-base",
+    "Dr-BERT/DrBERT-7GB",
+]
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--only", choices=["classical", "bert", "all"], default="all")
-    parser.add_argument("--output-dir", default=str(Path(__file__).parent / "results"))
-    parser.add_argument("--bert-model", default="bert-base-multilingual-cased")
-    parser.add_argument("--force", action="store_true")
-    args = parser.parse_args()
-    output = Path(args.output_dir)
-    output.mkdir(parents=True, exist_ok=True)
-    for domain in ("EMEA", "MEDLINE"):
-        if args.only in ("classical", "all"):
-            for architecture in ("cnn", "lstm"):
-                for source in ["random"] + EMBEDDING_NAMES:
-                    result_path = output / f"{domain}_{architecture}_{source}.json"
-                    if result_path.exists() and not args.force:
-                        saved = json.loads(result_path.read_text(encoding="utf-8"))
-                        if saved.get("epochs", 0) >= 30:
-                            print(f"Skipping completed {result_path.name}", flush=True)
-                            continue
-                    run_classical(domain, architecture, source, epochs=30, output_dir=output)
-        if args.only in ("bert", "all"):
-            lower_name = args.bert_model.lower()
-            model_label = ("drbert" if "drbert" in lower_name else
-                           "camembert" if "camembert" in lower_name else "bert")
-            result_path = output / f"{domain}_{model_label}.json"
-            if result_path.exists() and not args.force:
-                saved = json.loads(result_path.read_text(encoding="utf-8"))
-                if saved.get("epochs", 0) >= 5 and saved.get("checkpoint") == args.bert_model:
-                    print(f"Skipping completed {result_path.name}", flush=True)
+def run(cmd, label):
+    print("\n" + "="*70)
+    print("RUNNING: {}".format(label))
+    print("="*70)
+    result = subprocess.run(cmd, cwd=str(BASE_DIR))
+    if result.returncode != 0:
+        print("[WARNING] Command failed (return code {}): {}".format(
+            result.returncode, label))
+    return result.returncode
+
+
+# ---------------------------------------------------------------------------
+# 1. Classical models  (LSTM / CNN  x  7 embeddings  x  2 corpora)
+# ---------------------------------------------------------------------------
+if not args.skip_classical:
+    for corpus in corpora:
+        for model in ["lstm", "cnn"]:
+            for emb in EMBEDDINGS:
+                out_file = RESULTS_DIR / "{}_{}_{}.json".format(corpus, model, emb)
+                if out_file.exists():
+                    print("[SKIP - already done] {}".format(out_file.name))
                     continue
-            run_bert(domain, model_name=args.bert_model, epochs=5, output_dir=output)
+                cmd = [
+                    PYTHON, "cnn_classification.py",
+                    "--model",   model,
+                    "--corpus",  corpus,
+                    "--emb",     emb,
+                    "--epochs",  str(args.classical_epochs),
+                    "--out_dir", str(RESULTS_DIR),
+                ]
+                run(cmd, "{} | {} | {}".format(model.upper(), corpus, emb))
 
+# ---------------------------------------------------------------------------
+# 2. Transformer models
+# ---------------------------------------------------------------------------
+if not args.skip_transformer:
+    for corpus in corpora:
+        for tmodel in TRANSFORMER_MODELS:
+            model_tag = tmodel.replace("/", "_")
+            out_file = RESULTS_DIR / "{}_{}.json".format(corpus, model_tag)
+            if out_file.exists():
+                print("[SKIP - already done] {}".format(out_file.name))
+                continue
+            cmd = [
+                PYTHON, "transformers_classification.py",
+                "--model",   tmodel,
+                "--corpus",  corpus,
+                "--epochs",  str(args.transformer_epochs),
+                "--out_dir", str(RESULTS_DIR),
+            ]
+            run(cmd, "TRANSFORMER | {} | {}".format(corpus, tmodel))
 
-if __name__ == "__main__":
-    main()
+# ---------------------------------------------------------------------------
+# 3. Print summary table
+# ---------------------------------------------------------------------------
+print("\n\n" + "="*70)
+print("RESULTS SUMMARY")
+print("="*70)
+print("{:<10} {:<8} {:<28} {:>6} {:>6} {:>6}".format(
+    "Corpus", "Model", "Embedding", "P", "R", "F1"))
+print("-" * 70)
+
+for json_file in sorted(RESULTS_DIR.glob("*.json")):
+    try:
+        with open(json_file, encoding="utf-8") as f:
+            r = json.load(f)
+        corpus = r.get("corpus", "?")
+        model  = r.get("model",  "?")
+        emb    = r.get("embedding", "?")
+        p      = r.get("test_precision", 0)
+        rec    = r.get("test_recall",    0)
+        f1     = r.get("test_f1",        0)
+        print("{:<10} {:<8} {:<28} {:>6.4f} {:>6.4f} {:>6.4f}".format(
+            corpus, model, emb, p, rec, f1))
+    except Exception as e:
+        print("  Could not read {}: {}".format(json_file.name, e))
+
+print("=" * 70)

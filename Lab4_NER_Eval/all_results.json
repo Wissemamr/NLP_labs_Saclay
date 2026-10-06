@@ -1,0 +1,308 @@
+﻿[
+    {
+        "corpus":  "EMEA",
+        "model":  "bert-base-multilingual-uncased",
+        "model_family":  "multilingual BERT",
+        "checkpoint":  "bert-base-multilingual-uncased",
+        "embedding_type":  "transformer",
+        "dev_f1":  0.6627,
+        "test_precision":  0.791175,
+        "test_recall":  0.774814,
+        "test_f1":  0.782909
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "camembert-base",
+        "model_family":  "CamemBERT",
+        "checkpoint":  "camembert-base",
+        "embedding_type":  "transformer",
+        "dev_f1":  null,
+        "test_precision":  0.776095,
+        "test_recall":  0.760939,
+        "test_f1":  0.768442
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "Dr-BERT/DrBERT-7GB",
+        "model_family":  "medical BERT (DrBERT)",
+        "checkpoint":  "Dr-BERT/DrBERT-7GB",
+        "embedding_type":  "transformer",
+        "dev_f1":  0.7159,
+        "test_precision":  0.80653,
+        "test_recall":  0.78229,
+        "test_f1":  0.794225
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "bert-base-multilingual-uncased",
+        "model_family":  "multilingual BERT",
+        "checkpoint":  "bert-base-multilingual-uncased",
+        "embedding_type":  "transformer",
+        "dev_f1":  0.4774,
+        "test_precision":  0.793324,
+        "test_recall":  0.777896,
+        "test_f1":  0.785534
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "camembert-base",
+        "model_family":  "CamemBERT",
+        "checkpoint":  "camembert-base",
+        "embedding_type":  "transformer",
+        "dev_f1":  0.0895,
+        "test_precision":  0.774559,
+        "test_recall":  0.75614,
+        "test_f1":  0.765239
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "Dr-BERT/DrBERT-7GB",
+        "model_family":  "medical BERT (DrBERT)",
+        "checkpoint":  "Dr-BERT/DrBERT-7GB",
+        "embedding_type":  "transformer",
+        "dev_f1":  0.5246,
+        "test_precision":  0.806695,
+        "test_recall":  0.779405,
+        "test_f1":  0.792815
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_med",
+        "dev_f1":  0.4441,
+        "test_precision":  0.518479,
+        "test_recall":  0.495429,
+        "test_f1":  0.506692
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_press",
+        "dev_f1":  0.4808,
+        "test_precision":  0.566314,
+        "test_recall":  0.548158,
+        "test_f1":  0.557088
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_med",
+        "dev_f1":  0.4157,
+        "test_precision":  0.526511,
+        "test_recall":  0.499857,
+        "test_f1":  0.512838
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_press",
+        "dev_f1":  0.4441,
+        "test_precision":  0.559417,
+        "test_recall":  0.528058,
+        "test_f1":  0.543285
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_med",
+        "dev_f1":  0.4537,
+        "test_precision":  0.524578,
+        "test_recall":  0.505582,
+        "test_f1":  0.514905
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_press",
+        "dev_f1":  0.4933,
+        "test_precision":  0.586047,
+        "test_recall":  0.571312,
+        "test_f1":  0.578586
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_med",
+        "dev_f1":  0.355,
+        "test_precision":  0.489609,
+        "test_recall":  0.471198,
+        "test_f1":  0.480227
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_press",
+        "dev_f1":  0.4472,
+        "test_precision":  0.55371,
+        "test_recall":  0.525622,
+        "test_f1":  0.539301
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_med",
+        "dev_f1":  0.3764,
+        "test_precision":  0.465509,
+        "test_recall":  0.444525,
+        "test_f1":  0.454775
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_press",
+        "dev_f1":  0.4357,
+        "test_precision":  0.527987,
+        "test_recall":  0.508226,
+        "test_f1":  0.517918
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_med",
+        "dev_f1":  0.4071,
+        "test_precision":  0.508617,
+        "test_recall":  0.496673,
+        "test_f1":  0.502574
+    },
+    {
+        "corpus":  "EMEA",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_press",
+        "dev_f1":  0.4121,
+        "test_precision":  0.526525,
+        "test_recall":  0.494048,
+        "test_f1":  0.50977
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_med",
+        "dev_f1":  0.3328,
+        "test_precision":  0.45757,
+        "test_recall":  0.436789,
+        "test_f1":  0.446938
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_press",
+        "dev_f1":  0.2943,
+        "test_precision":  0.477798,
+        "test_recall":  0.44489,
+        "test_f1":  0.460757
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_med",
+        "dev_f1":  0.3426,
+        "test_precision":  0.483887,
+        "test_recall":  0.457706,
+        "test_f1":  0.470433
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_press",
+        "dev_f1":  0.3465,
+        "test_precision":  0.506893,
+        "test_recall":  0.478843,
+        "test_f1":  0.492469
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_med",
+        "dev_f1":  0.3564,
+        "test_precision":  0.470544,
+        "test_recall":  0.456187,
+        "test_f1":  0.463254
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "cnn",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_press",
+        "dev_f1":  0.3552,
+        "test_precision":  0.518972,
+        "test_recall":  0.49702,
+        "test_f1":  0.507759
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_med",
+        "dev_f1":  0.2986,
+        "test_precision":  0.448193,
+        "test_recall":  0.416154,
+        "test_f1":  0.43158
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "fasttext_cbow_press",
+        "dev_f1":  0.3357,
+        "test_precision":  0.504511,
+        "test_recall":  0.476336,
+        "test_f1":  0.490019
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_med",
+        "dev_f1":  0.3021,
+        "test_precision":  0.457872,
+        "test_recall":  0.428291,
+        "test_f1":  0.442588
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_cbow_press",
+        "dev_f1":  0.3454,
+        "test_precision":  0.509272,
+        "test_recall":  0.479557,
+        "test_f1":  0.493968
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_med",
+        "dev_f1":  0.3114,
+        "test_precision":  0.458393,
+        "test_recall":  0.426465,
+        "test_f1":  0.441853
+    },
+    {
+        "corpus":  "MEDLINE",
+        "model":  "lstm",
+        "model_family":  "classical",
+        "embedding_type":  "w2v_sg_press",
+        "dev_f1":  0.3452,
+        "test_precision":  0.494347,
+        "test_recall":  0.475987,
+        "test_f1":  0.484993
+    }
+]

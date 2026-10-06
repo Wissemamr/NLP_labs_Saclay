@@ -1,152 +1,307 @@
-"""Fine-tune a multilingual Transformer for QUAERO token classification."""
+"""
+transformers_classification.py  (NER - token classification with BERT)
+-----------------------------------------------------------------------
+Fine-tunes a Hugging Face transformer (AutoModelForTokenClassification)
+on the QUAERO_FrenchMed NER dataset.
 
-import argparse
+Usage examples:
+  python transformers_classification.py --model bert-base-multilingual-uncased --corpus EMEA --epochs 5
+  python transformers_classification.py --model camembert-base --corpus MEDLINE --epochs 5
+
+Arguments:
+  --model   : HuggingFace model id (default: bert-base-multilingual-uncased)
+  --corpus  : EMEA | MEDLINE
+  --epochs  : int (default 5)
+  --batch   : int (default 16)
+  --lr      : float (default 2e-5)
+  --max_len : int (default 128)
+  --data_dir: path to QUAERO_FrenchMed directory
+  --out_dir : directory for results JSON
+"""
+
+import os
+import sys
 import json
-import random
-from pathlib import Path
-
+import argparse
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
-from transformers import AutoModelForTokenClassification, AutoTokenizer
+from torch.utils.data import DataLoader
+from transformers import (
+    AutoTokenizer,
+    AutoModelForTokenClassification,
+    get_linear_schedule_with_warmup,
+)
+from tqdm import tqdm
+from seqeval.metrics import (
+    classification_report as seq_classification_report,
+    f1_score   as seq_f1,
+    precision_score as seq_prec,
+    recall_score    as seq_rec,
+)
 
-from ner_data import load_domain, score_sequences, tag_vocabulary
+from ner_data import read_conll, build_vocab
 
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+DATA_ROOT = os.path.join(BASE_DIR, "..", "Lab3_Embedding", "data", "QUAERO_FrenchMed")
 
-class EncodedNER(Dataset):
-    def __init__(self, sentences, tokenizer, label_to_id, max_length):
-        self.items = []
-        self.truncated_words = 0
-        for words, tags in sentences:
-            encoded = tokenizer(words, is_split_into_words=True, truncation=True,
-                                max_length=max_length, return_attention_mask=True)
-            word_ids = encoded.word_ids()
-            observed = {i for i in word_ids if i is not None}
-            if len(observed) != len(words):
-                self.truncated_words += len(words) - len(observed)
-            previous = None
+parser = argparse.ArgumentParser(description="NER fine-tuning with Transformer (BERT)")
+parser.add_argument("--model",   default="bert-base-multilingual-uncased")
+parser.add_argument("--corpus",  default="EMEA", choices=["EMEA", "MEDLINE"])
+parser.add_argument("--epochs",  default=5,    type=int)
+parser.add_argument("--batch",   default=16,   type=int)
+parser.add_argument("--lr",      default=2e-5, type=float)
+parser.add_argument("--max_len", default=128,  type=int)
+parser.add_argument("--data_dir", default=DATA_ROOT)
+parser.add_argument("--out_dir",  default=os.path.join(BASE_DIR, "results"))
+args = parser.parse_args()
+
+os.makedirs(args.out_dir, exist_ok=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Device: {}".format(device))
+if device.type == "cuda":
+    print("GPU: {}".format(torch.cuda.get_device_name(0)))
+
+# ---------------------------------------------------------------------------
+# Load CoNLL data
+# ---------------------------------------------------------------------------
+corpus    = args.corpus
+conll_dir = os.path.join(args.data_dir, corpus)
+
+train_sents = read_conll(os.path.join(conll_dir, "{}train_layer1_ID.conll".format(corpus)))
+dev_sents   = read_conll(os.path.join(conll_dir, "{}dev_layer1_ID.conll".format(corpus)))
+test_sents  = read_conll(os.path.join(conll_dir, "{}test_layer1_ID.conll".format(corpus)))
+
+print("Loaded {} train | {} dev | {} test sentences".format(
+    len(train_sents), len(dev_sents), len(test_sents)))
+
+_, tag2idx, idx2tag = build_vocab([train_sents, dev_sents, test_sents])
+num_labels = len(tag2idx)
+print("Labels ({}): {}".format(num_labels, list(tag2idx.keys())))
+
+# ---------------------------------------------------------------------------
+# Tokeniser
+# ---------------------------------------------------------------------------
+tokenizer = AutoTokenizer.from_pretrained(args.model)
+
+# ---------------------------------------------------------------------------
+# Dataset with word-to-subtoken alignment
+# ---------------------------------------------------------------------------
+
+class NERDataset(torch.utils.data.Dataset):
+    """
+    Tokenises each sentence word-by-word (is_split_into_words=True).
+    The NER label of a word is assigned only to its first sub-token;
+    all subsequent sub-tokens and special tokens receive label -100
+    (ignored by CrossEntropyLoss).
+    """
+
+    def __init__(self, sentences, tag2idx, tokenizer, max_len=128):
+        self.samples = []
+        for sent in sentences:
+            words = [w for w, _ in sent]
+            tags  = [t for _, t in sent]
+            enc = tokenizer(
+                words,
+                is_split_into_words=True,
+                truncation=True,
+                max_length=max_len,
+                padding="max_length",
+                return_tensors="pt",
+            )
+            word_ids = enc.word_ids(batch_index=0)
             labels = []
-            for word_id in word_ids:
-                if word_id is None or word_id == previous:
-                    labels.append(-100)
+            prev_word_id = None
+            for wid in word_ids:
+                if wid is None:
+                    labels.append(-100)          # [CLS], [SEP], PAD
+                elif wid != prev_word_id:
+                    labels.append(tag2idx.get(tags[wid], 0))   # first sub-token
                 else:
-                    labels.append(label_to_id[tags[word_id]])
-                previous = word_id
-            self.items.append((encoded["input_ids"], encoded["attention_mask"], labels))
-        if self.truncated_words:
-            raise ValueError(f"{self.truncated_words} words truncated; increase --max-len")
+                    labels.append(-100)          # continuation sub-token
+                prev_word_id = wid
+
+            self.samples.append({
+                "input_ids":      enc["input_ids"].squeeze(0),
+                "attention_mask": enc["attention_mask"].squeeze(0),
+                "labels":         torch.tensor(labels, dtype=torch.long),
+            })
 
     def __len__(self):
-        return len(self.items)
+        return len(self.samples)
 
-    def __getitem__(self, index):
-        return self.items[index]
-
-
-def collate(batch, pad_id):
-    length = max(len(ids) for ids, _, _ in batch)
-    result = {"input_ids": [], "attention_mask": [], "labels": []}
-    for ids, mask, labels in batch:
-        n = length - len(ids)
-        result["input_ids"].append(ids + [pad_id] * n)
-        result["attention_mask"].append(mask + [0] * n)
-        result["labels"].append(labels + [-100] * n)
-    return {key: torch.tensor(value, dtype=torch.long) for key, value in result.items()}
+    def __getitem__(self, idx):
+        return self.samples[idx]
 
 
-@torch.no_grad()
-def evaluate(model, loader, labels, device):
+print("Building datasets ...")
+train_ds = NERDataset(train_sents, tag2idx, tokenizer, args.max_len)
+dev_ds   = NERDataset(dev_sents,   tag2idx, tokenizer, args.max_len)
+test_ds  = NERDataset(test_sents,  tag2idx, tokenizer, args.max_len)
+
+train_loader = DataLoader(train_ds, batch_size=args.batch, shuffle=True)
+dev_loader   = DataLoader(dev_ds,   batch_size=args.batch, shuffle=False)
+test_loader  = DataLoader(test_ds,  batch_size=args.batch, shuffle=False)
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+model = AutoModelForTokenClassification.from_pretrained(
+    args.model,
+    num_labels=num_labels,
+    ignore_mismatched_sizes=True,
+)
+model = model.to(device)
+print("\nModel: {}  |  labels: {}".format(args.model, num_labels))
+
+# ---------------------------------------------------------------------------
+# Optimiser + linear warmup scheduler
+# ---------------------------------------------------------------------------
+optimizer    = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
+total_steps  = len(train_loader) * args.epochs
+scheduler    = get_linear_schedule_with_warmup(
+    optimizer,
+    num_warmup_steps=int(0.1 * total_steps),
+    num_training_steps=total_steps,
+)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def decode_batch(logits, labels):
+    """Convert (B, T, C) logits and (B, T) label tensors to seqeval lists."""
+    pred_ids = logits.argmax(dim=-1)
+    preds_all, golds_all = [], []
+    for pred_seq, gold_seq in zip(pred_ids, labels):
+        p_tags, g_tags = [], []
+        for p, g in zip(pred_seq.tolist(), gold_seq.tolist()):
+            if g == -100:
+                continue
+            p_tags.append(idx2tag[p])
+            g_tags.append(idx2tag[g])
+        preds_all.append(p_tags)
+        golds_all.append(g_tags)
+    return preds_all, golds_all
+
+
+def evaluate(loader):
     model.eval()
-    gold, predicted = [], []
-    for batch in loader:
-        batch = {key: value.to(device) for key, value in batch.items()}
-        predictions = model(input_ids=batch["input_ids"],
-                            attention_mask=batch["attention_mask"]).logits.argmax(-1)
-        for row, target in zip(predictions.cpu(), batch["labels"].cpu()):
-            keep = target != -100
-            predicted.append([labels[int(i)] for i in row[keep]])
-            gold.append([labels[int(i)] for i in target[keep]])
-    return score_sequences(gold, predicted)
+    all_preds, all_golds = [], []
+    with torch.no_grad():
+        for batch in loader:
+            input_ids      = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels         = batch["labels"].to(device)
+            outputs = model(input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            labels=labels)
+            p, g = decode_batch(outputs.logits.cpu(), labels.cpu())
+            all_preds.extend(p)
+            all_golds.extend(g)
+    f1 = seq_f1(all_golds, all_preds, average="weighted", zero_division=0)
+    return f1, all_preds, all_golds
 
 
-def run(domain, model_name="bert-base-multilingual-cased", epochs=5, batch_size=8,
-        lr=2e-5, max_length=512, seed=42, output_dir=None):
-    if epochs < 5:
-        raise ValueError("BERT requires at least 5 epochs")
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.set_num_threads(min(4, torch.get_num_threads()))
-    lower_name = model_name.lower()
-    model_label = ("drbert" if "drbert" in lower_name else
-                   "camembert" if "camembert" in lower_name else "bert")
-    splits = load_domain(domain)
-    labels = tag_vocabulary(splits["train"])
-    label_to_id = {tag: i for i, tag in enumerate(labels)}
-    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
-    if not tokenizer.is_fast:
-        raise ValueError("A fast tokenizer is required for word-level label alignment")
-    loaders = {}
-    for split, sentences in splits.items():
-        dataset = EncodedNER(sentences, tokenizer, label_to_id, max_length)
-        loaders[split] = DataLoader(dataset, batch_size=batch_size,
-                                    shuffle=(split == "train"),
-                                    collate_fn=lambda batch: collate(batch, tokenizer.pad_token_id))
-    model = AutoModelForTokenClassification.from_pretrained(
-        model_name, num_labels=len(labels), id2label={i: tag for i, tag in enumerate(labels)},
-        label2id=label_to_id, ignore_mismatched_sizes=True)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    best_f1, best_epoch, best_path = -1, 0, None
-    if output_dir:
-        best_path = Path(output_dir) / f"{domain}_{model_label}_checkpoint.pt"
-        best_path.parent.mkdir(parents=True, exist_ok=True)
-    best_state = None
-    for epoch in range(1, epochs + 1):
-        model.train()
-        total_loss = 0.0
-        for batch in loaders["train"]:
-            batch = {key: value.to(device) for key, value in batch.items()}
-            optimizer.zero_grad()
-            loss = model(**batch).loss
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            total_loss += loss.item()
-        dev = evaluate(model, loaders["dev"], labels, device)
-        print(f"{domain} {model_label} epoch={epoch}/{epochs} "
-              f"loss={total_loss / len(loaders['train']):.4f} dev_f1={dev['f1']:.4f}", flush=True)
-        if dev["f1"] > best_f1:
-            best_f1, best_epoch = dev["f1"], epoch
-            if best_path:
-                torch.save(model.state_dict(), best_path)
-            else:
-                best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
-    model.load_state_dict(torch.load(best_path, map_location=device, weights_only=True)
-                          if best_path else best_state)
-    result = {
-        "dataset": domain, "model": model_label, "embedding": "contextual",
-        "checkpoint": model_name, "epochs": epochs, "best_epoch": best_epoch,
-        "seed": seed, "dev": evaluate(model, loaders["dev"], labels, device),
-        "test": evaluate(model, loaders["test"], labels, device),
-    }
-    if output_dir:
-        (Path(output_dir) / f"{domain}_{model_label}.json").write_text(
-            json.dumps(result, indent=2), encoding="utf-8")
-    return result
+# ---------------------------------------------------------------------------
+# Training loop
+# ---------------------------------------------------------------------------
+best_val_f1    = -1.0   # start below 0 so epoch 1 always saves a checkpoint
+best_state     = None
+model_tag      = args.model.replace("/", "_")
+best_ckpt_path = os.path.join(args.out_dir, "{}_{}_best.pt".format(corpus, model_tag))
 
+print("\n" + "="*60)
+print("Fine-tuning for {} epochs ...".format(args.epochs))
+print("="*60)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", choices=["EMEA", "MEDLINE"], required=True)
-    parser.add_argument("--model", default="bert-base-multilingual-cased")
-    parser.add_argument("--epochs", type=int, default=5)
-    parser.add_argument("--batch", type=int, default=8)
-    parser.add_argument("--lr", type=float, default=2e-5)
-    parser.add_argument("--max-len", type=int, default=512)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--output-dir", default=str(Path(__file__).parent / "results"))
-    args = parser.parse_args()
-    print(json.dumps(run(args.dataset, args.model, args.epochs, args.batch,
-                         args.lr, args.max_len, args.seed, args.output_dir), indent=2))
+for epoch in range(1, args.epochs + 1):
+    model.train()
+    total_loss = 0.0
+
+    for batch in tqdm(train_loader,
+                      desc="Epoch {}/{}".format(epoch, args.epochs),
+                      leave=False):
+        input_ids      = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+        labels         = batch["labels"].to(device)
+
+        outputs = model(input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        labels=labels)
+        loss = outputs.loss
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        scheduler.step()
+        total_loss += loss.item()
+
+    avg_loss = total_loss / len(train_loader)
+    val_f1, _, _ = evaluate(dev_loader)
+    print("Epoch {:3d} | loss={:.4f} | val_f1={:.4f}".format(epoch, avg_loss, val_f1))
+
+    if val_f1 > best_val_f1:
+        best_val_f1 = val_f1
+        best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+        try:
+            tmp_path = best_ckpt_path + ".tmp"
+            torch.save(best_state, tmp_path)
+            if os.path.exists(best_ckpt_path):
+                os.remove(best_ckpt_path)
+            os.rename(tmp_path, best_ckpt_path)
+        except Exception as e:
+            pass
+
+# ---------------------------------------------------------------------------
+# Test evaluation using best checkpoint
+# ---------------------------------------------------------------------------
+if best_state is not None:
+    model.load_state_dict({k: v.to(device) for k, v in best_state.items()})
+elif os.path.exists(best_ckpt_path):
+    model.load_state_dict(torch.load(best_ckpt_path, map_location=device))
+test_f1, test_preds, test_golds = evaluate(test_loader)
+
+print("\n" + "="*60)
+print("TEST RESULTS  corpus={}  model={}".format(corpus, args.model))
+print("="*60)
+report = seq_classification_report(test_golds, test_preds, zero_division=0)
+print(report)
+print("Weighted F1: {:.4f}".format(test_f1))
+
+# ---------------------------------------------------------------------------
+from sklearn.metrics import f1_score as sk_f1, precision_score as sk_prec, recall_score as sk_rec
+
+g_flat = [t for s in test_golds for t in s]
+p_flat = [t for s in test_preds for t in s]
+entity_tags = [t for t in sorted(list(set(g_flat))) if t != 'O']
+
+token_f1_weighted = round(sk_f1(g_flat, p_flat, average="weighted", zero_division=0), 4)
+token_f1_entity   = round(sk_f1(g_flat, p_flat, labels=entity_tags, average="weighted", zero_division=0), 4)
+strict_entity_f1  = round(seq_f1(test_golds, test_preds, zero_division=0), 4)
+
+results = {
+    "corpus":                corpus,
+    "model":                 args.model,
+    "embedding":             "transformer",
+    "epochs":                args.epochs,
+    "best_val_f1":           round(best_val_f1, 4),
+    "test_f1":               round(test_f1, 4),
+    "test_entity_strict_f1": strict_entity_f1,
+    "test_token_f1":         token_f1_weighted,
+    "test_token_entity_f1":  token_f1_entity,
+    "test_precision":        round(seq_prec(test_golds, test_preds,
+                                            average="weighted", zero_division=0), 4),
+    "test_recall":           round(seq_rec(test_golds,  test_preds,
+                                           average="weighted", zero_division=0), 4),
+    "report":                report,
+}
+
+out_name = "{}_{}.json".format(corpus, model_tag)
+out_path = os.path.join(args.out_dir, out_name)
+with open(out_path, "w", encoding="utf-8") as fp:
+    json.dump(results, fp, indent=2, ensure_ascii=False)
+print("\nResults saved to: {}".format(out_path))

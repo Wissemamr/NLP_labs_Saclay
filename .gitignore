@@ -168,6 +168,8 @@ models/
 *.npy
 Lab3_Embedding/models/*
 Lab4_NER_Eval/results/*.pt
+Lab4_NER_Eval/stopword_results/*.pt
+Lab4_NER_Eval/improvement_results/*.pt
 
 # Spyder project settings
 .spyderproject
