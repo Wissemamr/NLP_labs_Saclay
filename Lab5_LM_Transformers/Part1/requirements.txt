@@ -1,0 +1,7 @@
+torch>=2.4
+transformers>=4.42
+datasets>=2.19
+sentencepiece
+ipykernel
+matplotlib
+tzdata

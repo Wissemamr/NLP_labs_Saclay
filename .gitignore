@@ -162,6 +162,9 @@ data/*
 data/
 
 # Models
+Lab5_LM_Transformers/Part1/runs/
+Lab5_LM_Transformers/Part1/checkpoints/
+Lab5_LM_Transformers/Part1/*.pth
 models/
 *.vec
 *.model
