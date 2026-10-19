@@ -3,7 +3,7 @@
 Implement and train a small decoder-only transformer to predict the next token
 and generate stories. The lab asks for a short training experiment, together with
 a description of the implementation choices and a conclusion in the notebook.
-N.B: In our case we went up to 500 epochs to see how the loss and perplexity decrease.
+An earlier experiment used 500 optimizer steps (not 500 epochs). The current setup uses the larger 80/20 split described below.
 
 ## Run the notebook
 
@@ -35,18 +35,26 @@ vocabulary. Its training split contains approximately **2.12 million stories**;
 the validation split contains approximately **22,000 stories**. Each example is
 a story in the `text` field, rather than a single token or training batch.
 
-The current notebook selects:
+The current notebook selects **10,000 stories total**:
 
 ```python
-TRAIN_EXAMPLES = 2000
-VALIDATION_EXAMPLES = 32
+TOTAL_EXAMPLES = 10000
+TRAIN_FRACTION = 0.8
+TRAIN_EXAMPLES = 8000
+VALIDATION_EXAMPLES = 2000
 ```
 
-`load_dataset(..., streaming=True).take(TRAIN_EXAMPLES)` selects the first 2,000
-training stories without materializing the entire training split. The selected
-stories are stored in a Python list, and the DataLoader shuffles this subset
-using a generator seeded with 42. The subset selection itself is not random.
-Validation uses the first 32 stories from the separate validation split.
+The first 10,000 rows are streamed from the original training split and stored
+locally in memory. `Dataset.train_test_split(test_size=2000, seed=42)` randomly
+partitions these rows into 8,000 training and 2,000 held-out examples. The
+training DataLoader additionally shuffles its partition. The original dataset's
+validation split is not used in this configuration.
+
+The 20% partition is evaluated repeatedly during training, so its role is
+**validation**, even though the split API calls it `test`. An untouched final
+test set would need to be reserved separately. Partitions are disjoint by row;
+duplicate story texts in the source corpus are not deduplicated. The split seed,
+source, fractions, and actual subset sizes are recorded in each run's metadata.
 
 Stories are tokenized with `mistralai/Mistral-7B-v0.3`, whose vocabulary has
 32,768 tokens. Sequences longer than `MAX_LENGTH` are truncated; shorter ones
@@ -72,14 +80,16 @@ saved in the notebook are:
 
 | Setting | CPU | CUDA GPU |
 | --- | ---: | ---: |
-| Selected training stories | 2,000 | 2,000 |
-| Selected validation stories | 32 | 32 |
+| Selected training stories | 8,000 | 8,000 |
+| Held-out validation stories | 2,000 | 2,000 |
 | Batch size | 2 | 4 |
 | Maximum sequence length | 64 tokens | 128 tokens |
-| Maximum training steps | 500 | 1,000 |
-| Available batches in one pass | 1,000 | 500 |
-| Actual steps per training-cell run | 500 | 500 |
-| Training stories processed per run | 1,000 | 2,000 |
+| Configured epochs | 1 | 1 |
+| Maximum training steps | 4,000 | 2,000 |
+| Available batches in one epoch | 4,000 | 2,000 |
+| Actual steps per training-cell run | 4,000 | 2,000 |
+| Training stories processed per run | 8,000 | 8,000 |
+| Evaluation interval | 1,000 steps | 500 steps |
 
 A **step** processes one batch and performs one optimizer update. An **epoch**
 is one complete pass through the selected training subset. The training loop makes up to `NUM_EPOCHS` passes (currently 1); it stops when
@@ -91,27 +101,27 @@ actual steps = min(MAX_STEPS, NUM_EPOCHS * available batches)
 effective epochs = sample presentations / selected training stories
 ```
 
-For example, the CPU configuration processes 500 batches of 2 stories: 1,000
-of the 2,000 selected stories, or half an epoch. The GPU configuration consumes
-all 500 available batches, completing one epoch even though `MAX_STEPS=1000`.
-`NUM_EPOCHS` controls complete passes; `MAX_STEPS` caps updates across all
-epochs. Both limits apply. Repeated stories count again in sample presentations;
-metadata separately records the number of unique selected examples seen.
+The default configuration processes all 8,000 training examples once: one
+epoch. `MAX_STEPS = NUM_EPOCHS * ceil(TRAIN_EXAMPLES / BATCH_SIZE)` is calculated
+in the first cell. Increasing `NUM_EPOCHS` therefore extends the step limit too.
+You can set a smaller `MAX_STEPS` manually for a shorter experiment.
 
 Training uses AdamW with learning rate `6e-4` and gradient clipping with maximum
 norm 1.0. Adjust these settings in the first cell, then run all cells:
 
 ```python
+TOTAL_EXAMPLES = 10000
+TRAIN_FRACTION = 0.8
 NUM_EPOCHS = 1
-MAX_STEPS = 1000 if device.type == "cuda" else 500
-TRAIN_EXAMPLES = 2000
-VALIDATION_EXAMPLES = 32
-EVAL_EVERY = 50
+STEPS_PER_EPOCH = math.ceil(TRAIN_EXAMPLES / BATCH_SIZE)
+MAX_STEPS = NUM_EPOCHS * STEPS_PER_EPOCH
+EVAL_EVERY = max(1, STEPS_PER_EPOCH // 4)
 ```
 
-Increase `NUM_EPOCHS` and `MAX_STEPS` together to allow multiple passes. For
-example, with 2,000 stories and CPU batch size 2, `NUM_EPOCHS=3` and
-`MAX_STEPS=3000` allow three complete passes (6,000 sample presentations).
+There are four validation measurements per epoch, plus the initial baseline.
+Each measurement evaluates all 2,000 held-out stories. This is substantially
+more work than the earlier 32-story validation setup, so evaluations are spaced
+farther apart. The full experiment takes longer than the previous 500-step run.
 
 Each execution of the training cell creates a fresh model and AdamW optimizer,
 resets the seed and training shuffle generator, and starts an independent run.
@@ -149,13 +159,14 @@ perplexity 32,768.
 
 An earlier 10-step CPU verification run achieved validation loss **8.1099** and
 perplexity **3327.30**. These are historical pipeline-check results, not results
-for the current 500-step configuration. Generated text was repetitive after
+for the current 10,000-story configuration. Generated text was repetitive after
 that short run. More training is needed for useful story generation.
 
 Compare experiments using the same validation stories, tokenizer, and sequence
 length; changing these also changes what is being measured. The CPU and GPU
 defaults use different sequence lengths, so align them for a direct comparison.
-A 32-story validation subset provides only a preliminary estimate. If training
+The earlier 32-story validation subset provided only a preliminary estimate;
+the current held-out subset contains 2,000 stories. If training
 loss decreases while validation loss increases, the model may be overfitting.
 
 ## Timestamped runs and report artifacts

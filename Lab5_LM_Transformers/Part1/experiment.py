@@ -57,7 +57,7 @@ def evaluate(model, loader, tokenizer, max_length, device):
 
 def train_run(model, optimizer, training_dl, validation_dl, tokenizer, *,
               model_config, runs_dir, max_length, max_steps, num_epochs,
-              eval_every, seed, tokenizer_id):
+              eval_every, seed, tokenizer_id, data_split=None):
     """Persist each metric immediately; save a final checkpoint on successful completion.
 
     max_steps is a global update limit across all epochs, not a per-epoch limit.
@@ -86,6 +86,9 @@ def train_run(model, optimizer, training_dl, validation_dl, tokenizer, *,
                     optimizer_settings={k: v for k, v in optimizer.param_groups[0].items() if k != "params"},
                     initialization="fresh random weights", steps_completed=0,
                     samples_processed=0, target_tokens_processed=0, epochs_completed=0.0)
+    if data_split is not None:
+        metadata["data_split"] = data_split
+        metadata["subset_selection"] = data_split["selection"]
     logger = logging.getLogger(f"part1.{run_dir.name}")
     logger.setLevel(logging.INFO)
     logger.propagate = False
