@@ -12,7 +12,7 @@ Université Paris-Saclay.
 | [Lemmatization and BPE](./Lab2_Lemma_BPE) | Exercises on lemmatization and the implementation of the Byte Pair Encoding (BPE) algorithm. |
 | [Word Embeddings](./Lab3_Embedding) | Training, evaluating, and visualizing word embeddings on French language data. |
 | [NER Evaluation](./Lab4_NER_Eval) | Named entity recognition experiments and the evaluation of CNN, LSTM, and Transformer-based classifiers. |
-| [Transformers and Fine-tuning](./Lab5_LM_Transformers) | Implementing Transformer components and applying parameter-efficient fine-tuning with LoRA. |
+| [LMs and Fine-tuning](./Lab5_LM_Transformers) | Implementing Transformer components and applying parameter-efficient fine-tuning with LoRA. |
 
 ## Notes
 
