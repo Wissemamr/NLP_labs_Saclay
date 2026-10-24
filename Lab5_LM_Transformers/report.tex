@@ -1,0 +1,302 @@
+\documentclass[a4paper, 12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{geometry}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
+\hypersetup{hidelinks}
+\usepackage{tabularx}
+\usepackage{amsfonts}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\IfFileExists{refs.bib}{
+    \usepackage[backend=biber,style=authoryear]{biblatex}
+    \addbibresource{refs.bib}
+}{}
+\usepackage{caption}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{graphicx} 
+\usepackage{forest}
+\captionsetup[figure]{skip=5pt}
+\geometry{top=2cm, bottom=2cm, left=2.5cm, right=2.5cm}
+
+\newcommand{\startpadding}{\hspace*{0.6cm}}
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    stringstyle=\color{magenta},
+    commentstyle=\color{gray}\itshape,
+    showstringspaces=false,
+    breaklines=true,
+    frame=single
+}
+\setlength{\parskip}{1ex plus 0.5ex minus 0.2ex}
+\setlength{\emergencystretch}{2em}
+
+\renewcommand{\contentsname}{Table of Contents}
+\renewcommand{\listfigurename}{Table of Figures}
+
+\begin{document}
+
+\noindent
+\begin{minipage}{1\textwidth}
+    \IfFileExists{images/logo_ufr_saclay.png}{
+        \includegraphics[width=\linewidth]{images/logo_ufr_saclay.png}
+    }{
+        \centering\textbf{\Large Universit\'e Paris-Saclay}
+    }
+\end{minipage}\par
+
+\vspace{2cm}
+
+\begin{center}
+    \begin{tcolorbox}[colback=white, colframe=black, coltitle=black, arc=10pt, boxrule=0.5mm, width=1\textwidth]
+        \vspace{0.3cm}
+        \begin{center}
+            \textbf{\LARGE Language Models and Transformers} \\[0.1cm]
+            %\Large \textbf{Project:} Project name
+        \end{center}
+        \vspace{0.2cm}
+    \end{tcolorbox}
+    
+    \vspace{1.5cm}
+    \textbf{\Large NLP Today - Session 5's Report} \\ 
+    \vspace{0.5cm}
+    \textbf{\Large M2 Artificial Intelligence} \\
+    \vspace{1.5cm}
+\end{center}
+\begin{center}
+    \renewcommand{\arraystretch}{1.5}
+    \begin{tabular}{|c|c|c|}
+        \hline
+        \textbf{Student ID} & \textbf{Full Name}&\textbf{Track}\\
+        \hline
+        22611272 & Zakaria SOUALAH MOHAMMED &AI\\
+        \hline
+        22407715 & Wissam AMAR &AI\\
+        \hline
+    \end{tabular}
+\end{center}
+\vspace{1cm}
+\begin{center}
+    \underline{\textbf{\Large Supervised by:}} \\
+    \vspace{0.4cm}
+    \textbf{Prof. Thomas GERALD \\ Prof. Sahar GHANNAY}
+\end{center}
+\vfill
+
+\begin{center}
+    \underline{\textbf{Academic Year:}} 2026-2027
+\end{center}
+
+\newpage
+\tableofcontents
+% \listoffigures
+\newpage
+\section{Introduction}
+
+This lab focuses on the practical implementation and adaptation of Transformer-based language models. Its main objective is to explore two fundamental stages in modern Natural Language Processing: building a language model from its core components and efficiently adapting a pretrained model to a downstream task.
+
+The first part consists of implementing a Transformer language model, including the main architectural components and Rotary Positional Embeddings (RoPE). The model follows a predefined configuration with a vocabulary size of 32,768, an embedding dimension of 256, four attention heads, eight hidden layers, and an intermediate dimension of 512. The objective is primarily to understand the architecture and training process. We report one continuous run of 5,000 optimizer updates from random initialization, with complete stories and no pretrained model weights.
+
+The second part focuses on model adaptation through Low-Rank Adaptation (LoRA), a parameter-efficient fine-tuning technique. Rather than updating all the parameters of the language model, LoRA introduces a small number of trainable parameters, allowing the model to be adapted while reducing computational and memory requirements.
+
+Through these two parts, the lab provides practical insight into both the construction of Transformer language models and their efficient fine-tuning using modern parameter-efficient adaptation techniques. The following section reports the implementation choices, experimental procedure, and measured results for Part 1.
+
+\section{Creating Our Own Language Model}
+
+\subsection{Experimental Setup}
+
+We implemented a decoder-only Transformer for next-token prediction and text generation. The model was trained starting from random initialization, and no earlier model or optimizer checkpoint was used since the provided weights were not really compatible with the content of the notebook. Table~\ref{tab:model-config} describes the
+model actually trained.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuration of the implemented decoder-only Transformer.}
+    \label{tab:model-config}
+    \begin{tabular}{lr}
+        \toprule
+        Parameter & Value \\
+        \midrule
+        Vocabulary size & 32,768 \\
+        Embedding dimension & 256 \\
+        Feedforward intermediate dimension & 512 \\
+        Attention heads & 4 \\
+        Dimension per attention head & 256 \\
+        Concatenated attention dimension & 1,024 \\
+        Decoder blocks & 8 \\
+        Total trainable parameters & 28,385,536 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The supplied attention-module skeleton projects each head to the full 256-dimensional output space. Concatenating four heads therefore produces 1,024 features, which are projected back to the 256-dimensional residual stream. This implementation choice accounts for the head dimension and parameter count in Table~\ref{tab:model-config}.
+
+We used the \path{roneneldan/TinyStories} official training split. Validation used the first 64 stories of the separate official
+validation split. Thus, the experiment uses subsets of both splits;
+these 64 validation stories were not partitioned from the training sample.
+
+The \path{mistralai/Mistral-7B-v0.3} tokenizer provides the required
+32,768-token vocabulary. Stories were processed in full, without
+truncation. Padding was added only
+within each microbatch. The EOS token was also used for padding,
+with padding positions identified through the attention mask and
+excluded from the loss.
+
+\subsection{Model Architecture and Training Approach}
+
+Input tokens are mapped to 256-dimensional embeddings and pass through
+eight decoder blocks. Each block contains causal multi-head
+self-attention and a SwiGLU feedforward network. Rotary positional
+embeddings (RoPE) are applied to queries and keys, and a causal mask
+prevents attention to future tokens. RMSNorm is applied before attention
+and before the feedforward network, with residual connections:
+\begin{align}
+    h &= x + \operatorname{Attention}
+        \bigl(\operatorname{RMSNorm}_1(x)\bigr), \\
+    y &= h + \operatorname{FFN}
+        \bigl(\operatorname{RMSNorm}_2(h)\bigr).
+\end{align}
+A final RMSNorm and a linear projection produce logits over the vocabulary. Inputs and next-token targets are shifted by one position:
+\[
+    (t_1,\ldots,t_{L-1})
+    \longrightarrow
+    (t_2,\ldots,t_L).
+\]
+We minimize cross-entropy over non-padding targets:
+\[
+    \mathcal{L}
+    = -\frac{1}{N}\sum_{i=1}^{N}
+    \log p_{\theta}(t_i \mid t_{<i}),
+\]
+where $N$ is the number of valid prediction targets. Loss is expressed
+in nats per token.
+
+The 5000 training steps used AdamW with learning rate $6\times10^{-4}$, weight decay
+0.01 and an effective batch of 16 stories. Adaptive GPU microbatches
+allowed longer stories to fit in memory. Each microbatch contributed
+its summed loss divided by the number of valid targets in the entire
+16-story batch. Accumulating these gradients therefore preserves the
+token-weighted full-batch objective. Gradients were clipped to maximum
+norm 1.0 after accumulation, followed by one optimizer update.
+
+\subsection{Training Progress and Quantitative Results}
+
+We measured training loss at every step and evaluated the model before
+training and after every 250 steps. This gave 21 validation measurements,
+always using the same 64 complete stories. We also calculated perplexity:
+\[
+    \operatorname{PPL}=\exp(\mathcal{L}).
+\]
+A lower perplexity means that the model assigns higher probabilities to
+the correct next tokens. Table~\ref{tab:validation-results} gives the results at selected steps.
+Figures~\ref{fig:learning-curves} and~\ref{fig:perplexity-progress} show
+the progress across the whole run.
+
+\input{images/lab5/validation_results.tex}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{images/lab5/part1_learning_progress.pdf}
+    \caption{Training and validation loss over 5,000 steps. Gray shows
+    individual training batches, blue shows the token-weighted mean over
+    the latest 100 steps, and orange shows validation loss. The right panel
+    gives a closer view after step 500. Training loss is measured before
+    each update; validation loss is measured after the marked update.}
+    \label{fig:learning-curves}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{images/lab5/part1_validation_progress.pdf}
+    \caption{Validation perplexity at each of the 21 evaluation points.
+    The left panel uses a logarithmic scale to include the high initial
+    value. The right panel shows the improvement after step 250 on a
+    linear scale. Both panels use the same 64 full validation stories.}
+    \label{fig:perplexity-progress}
+\end{figure}
+
+\newpage
+
+Most of the improvement happened early. Validation loss fell from 10.5522
+to 3.1201 in the first 250 steps and reached 2.3195 at step 1,000. It
+continued to decrease more slowly afterwards, reaching 1.7100 at step
+5,000, with a perplexity of 5.53. Even the last 1,000 steps still helped:
+validation loss fell from 1.7680 to 1.7100 during that interval.
+
+The individual training losses fluctuate, but the averaged curve shows
+a steady downward trend. The average over the final 100 steps was
+1.9737. Validation loss sits below this training curve. Since training
+batches change at every step while validation uses a fixed sample,
+we should be careful when interpreting the gap between them.
+
+\subsection{Training Time and Memory}
+
+The training updates took 25 minutes and 53 seconds in total, or about
+0.311 seconds per step. The full experiment, including preparation,
+evaluation and other overheads, took 27 minutes and 44 seconds.
+Figure~\ref{fig:training-resources} shows how update time and memory use
+varied during training. Longer stories required more computation, but
+the peak allocated GPU memory stayed within 3.17\,GiB.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{images/lab5/part1_training_resources.pdf}
+    \caption{Time and GPU memory use during training. Gray shows individual
+    updates and blue shows 50-step means. Update times include tokenization
+    and training computation, but exclude validation. The dashed line marks
+    the maximum allocated memory.}
+    \label{fig:training-resources}
+\end{figure}
+
+\subsection{Text Generation}
+
+We implemented greedy decoding, greedy decoding with a key--value cache,
+and temperature-based sampling. The cache reuses the keys and values
+of previous tokens. We checked that cached and uncached greedy decoding
+produced the same token sequence.
+
+With the prompt \texttt{Alice} and a limit of 64 new tokens, greedy
+decoding produced:
+
+\begin{quote}\small
+    Alice was a very happy three year old. She loved to explore and
+    learn new things. One day, she decided to go to the park. As she
+    was walking, she saw a big, scary dog. She was scared and ran away.
+
+    Alice wanted to get closer, so she reached out her hand and
+\end{quote}
+
+The sentences are mostly grammatical and resemble the simple stories
+in training data.
+
+Sampling with a temperature of 0.7 and a limit of 16 new tokens gave:
+
+\begin{quote}\small
+    Alicey was a very pretty girl. She was three years old and she loved playing
+\end{quote}
+
+Here, the model adds a letter to the prompt, changing Alice to Alicey.
+The rest is readable, but the example shows that the model does not
+always preserve a character's name. We would need more prompts and
+longer outputs to judge how consistently it generates coherent stories.
+
+\section{Fine-Tuning using LoRA}
+
+\section{AI Usage Declaration}
+In compliance with the Paris-Saclay Master AI Chart, we declare that AI tools were used for the following tasks:
+\begin{itemize}
+    \item Refining code formatting and implementation.
+    \item Grammar and orthographic revision of the report.
+\end{itemize}
+
+\end{document}

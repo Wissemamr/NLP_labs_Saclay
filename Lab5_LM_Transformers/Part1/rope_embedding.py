@@ -17,8 +17,8 @@ class RoPE:
         rotation_matrix = seq_idx.unsqueeze(1)@theta.unsqueeze(0)
 
         return (
-            rotation_matrix.cos().unsqueeze(-1).repeat(1,1 ,2).view(precomp_len, -1),
-            (rotation_matrix.sin().unsqueeze(-1).repeat(1,1 ,2) * torch.Tensor([-1,1])).view(precomp_len, -1)
+            rotation_matrix.cos().unsqueeze(-1).repeat(1,1 ,2).view(precomp_len, -1,1).squeeze(),
+            (rotation_matrix.sin().unsqueeze(-1).repeat(1,1 ,2) * torch.Tensor([-1,1])).view(precomp_len, -1, 1).squeeze()
         )
 
     def __init__(
@@ -53,8 +53,6 @@ class RoPE:
                 The start of the sequence to apply RoPE
         '''
         B, H, L, N = x.shape # batch size, sequence len, embed dim
-        if N != self.embedding_size or start_pos_id < 0:
-            raise ValueError("Invalid head dimension or negative RoPE position")
         if start_pos_id + L > self.rope_cos.shape[0]:
             # The precomputed RoPE has a too small size
             self.rope_cos, self.rope_sin =\
@@ -69,7 +67,7 @@ class RoPE:
             self.rope_cos = self.rope_cos.to(x.device)
             self.rope_sin = self.rope_sin.to(x.device)
 
-        return ( x * self.rope_cos[start_pos_id: start_pos_id + L].to(dtype=x.dtype) 
+        return ( x * self.rope_cos[start_pos_id: start_pos_id + L] 
                  +
-                 x.reshape(B, H, L, N//2, 2).flip(-1).reshape(B, H, L, N) * self.rope_sin[start_pos_id: start_pos_id + L].to(dtype=x.dtype) 
+                 x.reshape(B, H, L, N//2, 2).flip(-1).view(B, H, L, N) * self.rope_sin[start_pos_id: start_pos_id + L] 
                )

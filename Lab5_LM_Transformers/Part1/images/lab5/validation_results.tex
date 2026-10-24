@@ -1,0 +1,25 @@
+\begin{table}[htbp]
+    \centering
+    \caption{Selected checkpoints from the 5,000-step run.}
+    \label{tab:validation-results}
+    \begin{tabular}{rrrr}
+        \toprule
+        Step & Training loss & Validation loss & Perplexity \\
+        \midrule
+        0 & -- & 10.5522 & 38,263.19 \\
+        250 & 3.5094 & 3.1201 & 22.65 \\
+        500 & 2.9729 & 2.6686 & 14.42 \\
+        1,000 & 2.5824 & 2.3195 & 10.17 \\
+        2,000 & 2.2871 & 2.0177 & 7.52 \\
+        3,000 & 2.1419 & 1.8537 & 6.38 \\
+        4,000 & 2.0351 & 1.7680 & 5.86 \\
+        \textbf{5,000} & \textbf{1.9737} & \textbf{1.7100} & \textbf{5.53} \\
+        \bottomrule
+    \end{tabular}
+    \smallskip
+    \begin{minipage}{0.96\linewidth}\footnotesize
+    Training losses are token-weighted means over the preceding 100 updates.
+    Validation loss aggregates all 11,371 targets in the fixed 64-story sample.
+    The figures show all 21 evaluations, recorded every 250 updates.
+    \end{minipage}
+\end{table}
